@@ -43,7 +43,7 @@ function SocketIOFile(socket, options) {
 	if(!options.uploadDir) {
 		throw new Error('No upload directory specified.');
 	}
-	
+
 	// check directory is exists
 	if(typeof options.uploadDir === 'string') {
 		createDirectoryIfNotExists(options.uploadDir);
@@ -59,6 +59,8 @@ function SocketIOFile(socket, options) {
 
 	this.socket = socket;
 
+
+
 	socket.once('socket.io-file::reqSync', () => {
 		socket.emit('socket.io-file::recvSync', {
 			maxFileSize: this.maxFileSize,
@@ -69,8 +71,18 @@ function SocketIOFile(socket, options) {
 
 		this.emit('ready');
 	});
-	
+
 	var self = this;
+
+    this.abandonUpload = (id)=> {
+        self.emit('abort', {
+            name: uploadingFiles[id].name,
+            size: uploadingFiles[id].size,
+            wrote: uploadingFiles[id].wrote,
+            uploadDir: uploadingFiles[id].uploadDir
+        });
+    };
+
 	var uploadingFiles = {};
 
 	socket.on('socket.io-file::createFile', (fileInfo) => {
@@ -95,7 +107,7 @@ function SocketIOFile(socket, options) {
 				filename = this.rename;
 			}
 		}
-		
+
 		if(typeof options.uploadDir === 'string') {
 			uploadDir = path.join(options.uploadDir, filename);
 		}
@@ -117,8 +129,8 @@ function SocketIOFile(socket, options) {
 
 		var startTime = new Date();
 
-		this.emit('start', { 
-			name: filename, 
+		this.emit('start', {
+			name: filename,
 			size: fileInfo.size,
 			uploadDir: uploadDir
 		});
@@ -131,17 +143,17 @@ function SocketIOFile(socket, options) {
 			}
 
 			const endTime = new Date();
-			
+
 			const mimeType = mime.lookup(uploadDir);
 			const emitObj = {
-				name: filename, 
-				size: uploadingFiles[id].size, 
+				name: filename,
+				size: uploadingFiles[id].size,
 				wrote: uploadingFiles[id].wrote,
 				uploadDir: uploadingFiles[id].uploadDir,
 				mime: mimeType,
 				estimated: endTime - startTime
 			};
-			
+
 			if(this.accepts && this.accepts.length > 0) {
 				let found = false;
 
@@ -174,7 +186,7 @@ function SocketIOFile(socket, options) {
 
 				delete emitObj.uploadDir;
 				self.socket.emit(`socket.io-file::complete::${id}`, emitObj);
-			}			
+			}
 
 			// Release event handlers
 			socket.removeAllListeners(`socket.io-file::stream::${id}`);
@@ -209,7 +221,7 @@ function SocketIOFile(socket, options) {
 		}
 
 		var writeStream = fs.createWriteStream(uploadDir);
-		
+
 		uploadingFiles[id].writeStream = writeStream;
 
 		socket.emit(`socket.io-file::request::${id}`);
@@ -231,7 +243,7 @@ function SocketIOFile(socket, options) {
 
 			function write() {
 				let result = (uploadingFiles[id].wrote + chunk.length) > (self.maxFileSize);
-				
+
 				if( (uploadingFiles[id].wrote + chunk.length) > (self.maxFileSize)) {
 					return sendError(new Error(`Uploading file size exceeded max file size ${self.maxFileSize} byte(s).`));
 				}
@@ -240,8 +252,8 @@ function SocketIOFile(socket, options) {
 				uploadingFiles[id].wrote += chunk.length;
 
 				self.emit('stream', {
-					name: uploadingFiles[id].name, 
-					size: uploadingFiles[id].size, 
+					name: uploadingFiles[id].name,
+					size: uploadingFiles[id].size,
 					wrote: uploadingFiles[id].wrote,
 					uploadDir: uploadingFiles[id].uploadDir
 				});
@@ -270,14 +282,14 @@ function SocketIOFile(socket, options) {
 			uploadingFiles[id].abort = true;
 
 			self.emit('abort', {
-				name: uploadingFiles[id].name, 
-				size: uploadingFiles[id].size, 
+				name: uploadingFiles[id].name,
+				size: uploadingFiles[id].size,
 				wrote: uploadingFiles[id].wrote,
 				uploadDir: uploadingFiles[id].uploadDir
 			});
 			socket.emit(`socket.io-file::abort::${id}`, {
-				name: uploadingFiles[id].name, 
-				size: uploadingFiles[id].size, 
+				name: uploadingFiles[id].name,
+				size: uploadingFiles[id].size,
 				wrote: uploadingFiles[id].wrote,
 				uploadDir: uploadingFiles[id].uploadDir
 			});
